@@ -19,5 +19,10 @@ Quindi, l'idea sarebbe: perché non dividere in thread la ricostruzione?
 o canale per canale (3 thread, con R, G e B)
 oppure a righe alternate (1 thread per le righe pari, 1 thread per le dispari).
 
+3) [BONUS]
+per estensione, magari ci avevi già pensato... se il deinterlacciamento ti piace e funziona, si potrebbe applicare anche alle singole tiles.
+Se quelle troppo grandi sono pesanti da elaborare, si potrebbe dividere in thread ogni tiles (righe pari vs. righe dispari), fare il denoise in parallelo e poi ricostruire la tile.
+
+
 magari ci avevi già pensato... ma ormai sei talmente avanti che il mio solo contributo può essere (forse) teorico.
 fammi sapere che ne pensi!
