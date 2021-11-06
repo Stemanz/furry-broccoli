@@ -1,6 +1,6 @@
 Standard processing with Canon DPP3
 JPG quality = 10
 
-# TODO: replace dataset images 0002, 0003 as they are probably shifted 1-2 pixels
+# TODO: replace dataset images 0002, 0003, 0008 as they are probably shifted 1-2 pixels
 # TODO: add much more dataset images
 # TODO: train models independently per channel
