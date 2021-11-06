@@ -1,8 +1,9 @@
 Standard processing with Canon DPP3
 JPG quality = 10
 Noise reduction on ISO 200: DPP3 standard
-Noise reduction on ISO 1200: DPP 8,12
+Noise reduction on ISO 1200: DPP luminance 8, chrominance 12
 
-# TODO: replace dataset images 0002, 0003, 0008 as they are probably shifted 1-2 pixels
+# TODO: delete dataset images: pixel or sub-pixel shifts:
+# 0002, 0003, 0008, 0009, 0012, 0013
 # TODO: add much more dataset images
 # TODO: train models independently per channel
