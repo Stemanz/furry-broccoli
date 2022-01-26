@@ -8,6 +8,7 @@ from keras.layers import Conv2D, Conv2DTranspose
 from keras.constraints import max_norm
 from keras import backend as K
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf # 2.6.0
 from tensorflow.keras.optimizers import RMSprop # may be skipped
 
@@ -15,6 +16,7 @@ from PIL import Image
 from pathlib import Path
 from glob import glob
 import os
+from time import time
 
 
 class Dataset:
@@ -279,31 +281,10 @@ class Denoiser():
     
     """
     
-    def __init__(self, image, model,
-                 tile_size, # <int> or (horizontal pixels, vertical pixels)
-                 debug=False, verbose=True
-    ):
+    def __init__(self, image, model, tile_size=256, debug=False, verbose=True):
         self.image = image
         self.model = model
-        
-        if isinstance(tile_size, tuple):
-            assert len(tile_size) == 2
-            self.tile_size_h, self.tile_size_v = tile_size
-            assert isinstance(self.tile_size_h, (int, float))
-            assert isinstance(self.tile_size_v, (int, float))
-        elif isinstance(tile_size, (int, float)):
-            self.tile_size_h = tile_size
-            self.tile_size_v = tile_size
-        else:
-            raise TypeError("tile_size expected as <int> or 2-elems <tuple>")
-        
-        # in case floats were passed
-        self.tile_size_h = int(self.tile_size_h)
-        self.tile_size_v = int(self.tile_size_v)
-        
-        assert isinstance(debug, bool)
-        assert isinstance(verbose, bool)
-        
+        self.tile_size = tile_size
         self.debug = debug
         self.verbose = verbose
         
@@ -317,9 +298,8 @@ class Denoiser():
         if self.verbose:
             print(*args, **kwargs)
 
-
-    # from Dataset class, *adapted* to be asymmetric
-    def _crop_in_tiles(self, image, shift=0, asarray=True):
+    # from Dataset class
+    def _crop_in_tiles(self, image, tile_size=56, shift=0, asarray=True):
 
         """
         This generator function crops an image in several tiles
@@ -345,23 +325,26 @@ class Denoiser():
         0 to 1
         """
 
+        assert isinstance(tile_size, int)
         assert isinstance(shift, int)
         
+        self._deb(f"debug: {tile_size} tile_size in _crop_in_tiles")
+
         width, height = image.size
 
         #calculate coordinates of every tile
-        for x in range (0 + shift, width, self.tile_size_h):
-            if width - x < self.tile_size_h:
+        for x in range (0 + shift, width, tile_size):
+            if width - x < tile_size:
                 continue
 
-            for y in range (0 + shift, height, self.tile_size_v):
-                if height - y < self.tile_size_v:
+            for y in range (0 + shift, height, tile_size):
+                if height - y < tile_size:
                     continue
 
                 # tile coord ===
                 tile_coord = (
                     x, y, # upper left coords
-                    x + self.tile_size_h, y + self.tile_size_v # lower right coords
+                    x + tile_size, y + tile_size # lower right coords
                 )
 
                 tile = image.crop(tile_coord)
@@ -372,7 +355,7 @@ class Denoiser():
                     yield np.array(tile).astype("float32") / 255
         
         
-    def _predict_tiles_from_image(self, image, model):
+    def _predict_tiles_from_image(self, image, model, tile_size=56):
         """ This gives back the denoised <tiles>, according to the loaded <model>
         The model operates on multiple tiles at once. All tiles are shaped into a form
         that the model was trained for, then all put into a np.array container.
@@ -394,9 +377,14 @@ class Denoiser():
         
         A np.array containing all denoised (predicted) tiles
         """
-                
+        
+        # all tiles need to be put into a list and reshaped to a form
+        # the model is confortable with (x,x) to (x,x,1)
+        
+        self._deb(f"debug: {tile_size} tile_size in _predict_tiles_from_image")
+        
         to_predict = [
-            x.reshape(self.tile_size_v, self.tile_size_h, 1) for x in self._crop_in_tiles(image)
+            x.reshape(tile_size, tile_size, 1) for x in self._crop_in_tiles(image, tile_size)
         ]
 
         # the model expects an array of tiles, not a list of tiles
@@ -405,7 +393,7 @@ class Denoiser():
         return model.predict(to_predict)
 
     
-    def _image_rebuilder(self, image, model):
+    def _image_rebuilder(self, image, model, tile_size=56):
         """ Takes as input a monochromatic (single-channel) image,
         returns a denoised monochromatic image.
         
@@ -441,16 +429,18 @@ class Denoiser():
 
         # TODO
         # for now, we support only exact multiples of tile_size
-        tile_width = int(width / self.tile_size_h)
-        tile_height = int(height / self.tile_size_v)
+        tile_width = int(width / tile_size)
+        tile_height = int(height / tile_size)
 
         self._say(f"Image multiple of {tile_width}×{tile_height} integer tiles.")
 
         for i, channel in enumerate(channels):
             
             # next line useless if we just process one channel
-            #self._say(f"Processing channel {i + 1} of {len(channels)}")            
-            pred_tiles = [self._predict_tiles_from_image(channel, model)]
+            #self._say(f"Processing channel {i + 1} of {len(channels)}")
+            self._deb(f"debug: {tile_size} tile_size in _image_rebuilder")
+            
+            pred_tiles = [self._predict_tiles_from_image(channel, model, tile_size=tile_size)]
 
             self._deb(f"Predicted tiles length: {len(pred_tiles[0])}")
 
@@ -487,33 +477,35 @@ class Denoiser():
             return Image.fromarray(returnimage[:,:,0])   
 
         
-    def denoise(self):
+    def denoise(self, show=True, hide_extra_text=False):
         
         self._say("Denoising red channel..")
         denoised_r = self._image_rebuilder(
-            self.image.getchannel("R"), self.model
+            self.image.getchannel("R"), self.model, self.tile_size
         )
         
         self._say("Denoising green channel..")
         denoised_g = self._image_rebuilder(
-            self.image.getchannel("G"), self.model
+            self.image.getchannel("G"), self.model, self.tile_size
         )
         
         self._say("Denoising blue channel..")
         denoised_b = self._image_rebuilder(
-            self.image.getchannel("B"), self.model
+            self.image.getchannel("B"), self.model, self.tile_size
         )
         
         rgb = Image.merge("RGB",(denoised_r, denoised_g, denoised_b))
         
-        
         self.denoised_ = rgb
         del denoised_r, denoised_g, denoised_b
-        self._say("Denoised image in 'denoised_' attribute.")
         
-        return rgb
+        if not hide_extra_text: # useless if called whithin self.adv_denoise()
+            self._say("Denoised image in 'denoised_' attribute.")
+        
+        if show:
+            return rgb
 
-    
+
     def denoise_monochrome(self):
         """This assumes the input image only has one channel.
         """
@@ -522,8 +514,357 @@ class Denoiser():
         denoised = self._image_rebuilder(
             self.image, self.model
         )
+
+
+    def adv_denoise(self, show=True):
+        """This runs a 4-step denoising process that takes care to remove all
+        bordering artefacts.
+        This makes it possibile to use a small tile size for denoising and still
+        get an artefact-free final image
+        """
         
-        return denoised
+        # Preparing the transparency masks
+
+        # vertical stripes (operazione 1)
+        def make_vertical_stripes(n_tiles, as_image=True, final=False):
+            arrays = []
+
+            arrays.append(np.ones((height, t - halfdelta), dtype=np.uint8)*255)
+            arrays.append(np.zeros((height, delta), dtype=np.uint8))
+
+            for _ in range(n_tiles - 2):
+                arrays.append(np.ones((height, t - delta), dtype=np.uint8)*255)
+                arrays.append(np.zeros((height, delta), dtype=np.uint8))        
+
+            arrays.append(np.ones((height, t - delta), dtype=np.uint8)*255)
+
+            if final:
+                arrays.append(np.ones((height, halfdelta), dtype=np.uint8)*255) # modified
+            else:
+                arrays.append(np.zeros((height, halfdelta), dtype=np.uint8)) # modified
+
+            vertical_stripes = np.concatenate(arrays, axis=1)
+
+            if not as_image:
+                return vertical_stripes
+            else:
+                return Image.fromarray(vertical_stripes)
+
+
+        # horizontal stripes (operazione 4)
+        def make_horizontal_stripes(n_tiles, as_image=True, final=False):
+            arrays = []
+
+            arrays.append(np.ones((t - halfdelta, width), dtype=np.uint8)*255)
+            arrays.append(np.zeros((delta, width), dtype=np.uint8))
+
+            for _ in range(n_tiles - 2):
+                arrays.append(np.ones((t - delta, width), dtype=np.uint8)*255)
+                arrays.append(np.zeros((delta, width), dtype=np.uint8))        
+
+            arrays.append(np.ones((t - delta, width), dtype=np.uint8)*255)
+
+            if final:
+                arrays.append(np.ones((halfdelta, width), dtype=np.uint8)*255) # modified
+            else:
+                arrays.append(np.zeros((halfdelta, width), dtype=np.uint8))
+
+            horizontal_stripes = np.concatenate(arrays, axis=0)
+
+            if not as_image:
+                return horizontal_stripes
+            else:
+                return Image.fromarray(horizontal_stripes)
+
+        # ---
+        # crops, black bars
+
+        def make_black_img(hsize, vsize):
+            channels = [np.zeros((vsize, hsize), dtype=np.uint8) for _ in range(3)]
+            channels = [Image.fromarray(x) for x in channels]
+
+            return Image.merge("RGB", channels)
+
+        # ---
+
+        def make_left_crop(image, amount, as_image=True):
+            # amount is usually half_t
+
+            cropshift = image.crop((amount, 0, width, image.height)) # (left, upper, right, lower)
+
+            if not as_image:
+                return np.array(cropshift)
+            else:
+                return cropshift
+
+
+        def make_right_crop(image, amount, as_image=True):
+            # amount is usually half_t
+
+            cropshift = image.crop((0, 0, width - amount, image.height)) # (left, upper, right, lower)
+
+            if not as_image:
+                return np.array(cropshift)
+            else:
+                return cropshift
+
+
+        def apply_left_bar(image, amount, as_image=True):
+            # amount is usually half_t
+
+            leftbar = make_black_img(amount, image.height)
+            shift = np.concatenate((np.array(leftbar), np.array(image)), axis=1)
+
+            if not as_image:
+                return shift
+            else:
+                return Image.fromarray(shift)
+
+
+        def apply_right_bar(image, amount, as_image=True):
+            # amount is usually half_t
+
+            rightbar = make_black_img(amount, image.height)
+
+            try:
+                shift = np.concatenate((np.array(image), np.array(rightbar)), axis=1)
+            except:
+                print("Something went wrong.")
+                print(f"Image array shape: {np.array(image).shape}; bar: {np.array(rightbar).shape}")
+                print("Are you trying to process a base image with alpha channel?")
+                raise
+
+            if not as_image:
+                return shift
+            else:
+                return Image.fromarray(shift)
+
+        # ---
+        
+        def make_top_crop(image, amount, as_image=True):
+            # amount is usually half_t
+
+            cropshift = image.crop((0, amount, image.width, image.height)) # (left, upper, right, lower)
+
+            if not as_image:
+                return np.array(cropshift)
+            else:
+                return cropshift
+
+
+        def make_bottom_crop(image, amount, as_image=True):
+            # amount is usually half_t
+
+            cropshift = image.crop((0, 0, image.width, image.height - amount)) # (left, upper, right, lower)
+
+            if not as_image:
+                return np.array(cropshift)
+            else:
+                return cropshift
+
+
+        def apply_top_bar(image, amount, as_image=True):
+            # amount is usually half_t
+
+            topbar = make_black_img(image.width, amount)
+            shift = np.concatenate((np.array(topbar), np.array(image)), axis=0)
+
+            if not as_image:
+                return shift
+            else:
+                return Image.fromarray(shift)
+
+
+        def apply_bottom_bar(image, amount, as_image=True):
+            # amount is usually half_t
+
+            bottombar = make_black_img(image.width, amount)
+            shift = np.concatenate((np.array(image), np.array(bottombar)), axis=0)
+
+            if not as_image:
+                return shift
+            else:
+                return Image.fromarray(shift)
+
+        # ---
+        
+        def apply_mask(image, mask):
+
+            assert image.size == mask.size
+            r, g, b = (image.getchannel(x) for x in "RGB")
+
+            rgba = Image.merge("RGBA",(r, g, b, mask))
+
+            return rgba
+
+
+        def make_fixing_mask(n_tiles, as_image=True):
+            """This fixes the bottom artifact in the downshift 
+            image due to the denoising of black bars.
+
+            n_tiles is the number of HORIZONTAL TILES
+            """
+            arrays = []
+            # 0 == opaque; 255 == transparent
+            # axis=0 - stack vertically
+            # axis=1 - stack horizontally
+
+            arrays.append(np.zeros((height - halfdelta, width), dtype=np.uint8))
+
+            # bottom stripe: make this by staking stuff horizontally
+            temparray = []
+            temparray.append(np.ones((halfdelta, t - halfdelta), dtype=np.uint8)*255)
+            for _ in range(n_tiles - 2):
+                temparray.append(np.zeros((halfdelta, delta), dtype=np.uint8))
+                temparray.append(np.ones((halfdelta, t - delta), dtype=np.uint8)*255)
+
+            temparray.append(np.zeros((halfdelta, delta), dtype=np.uint8))
+            temparray.append(np.ones((halfdelta, t - halfdelta), dtype=np.uint8)*255) 
+
+            bottom_strip = np.concatenate(temparray, axis=1)
+
+            arrays.append(bottom_strip)
+
+            final_mask = np.concatenate(arrays, axis=0)
+
+            if not as_image:
+                return final_mask
+            else:
+                return Image.fromarray(final_mask)
+            
+        # ---
+        # Let's get started
+        # ---
+
+        # INPUT
+        base = self.image.convert("RGB") # don't need the eventual alpha channel
+        model = self.model # already a model object
+
+        width, height = base.size
+
+        t = self.tile_size                # tile size (tile is t×t size)
+        half_t = t // 2                   # half the tile size
+        n_horizontal_tiles = width // t   # choose reasonably so that no pixel is lost
+        n_vertical_tiles = height // t    # choose reasonably so that no pixel is lost
+        delta = 10                        # the number of pixels to make transparent at t intersections
+        halfdelta = delta // 2            # the number of delta pixels in a tile
+
+        print(f"Image properties: {width}×{height} pixels")
+        print(f"Tile size: {t}; half tile size: {half_t}; {n_horizontal_tiles}×{n_vertical_tiles} total tiles")
+        print(f"Intersection Δ: {delta}; half Δ: {halfdelta}")
+
+        # transparency masks
+        vertical_mask = make_vertical_stripes(n_horizontal_tiles) # counter-intuitive
+        horizontal_mask  = make_horizontal_stripes(n_vertical_tiles) # counter-intuitive
+
+        # horizontal processing
+        t0 = time()
+        print("Pass 1/4")
+
+        lc = make_left_crop(base, half_t)
+        lc_rightbar = apply_right_bar(lc, half_t)
+        rightshift = Denoiser(lc_rightbar, model, tile_size=self.tile_size)
+        rightshift.denoise(show=False, hide_extra_text=True)
+        rc = make_right_crop(rightshift.denoised_, half_t)
+        rightshift = apply_left_bar(rc, half_t)
+
+        t0_final = time() - t0
+        print(f"Complete. {round(t0_final, 1)} seconds elapsed.")
+
+        # vertical processing
+        t1 = time()
+        print("Pass 2/4")
+
+        tc = make_top_crop(base, half_t)
+        lc_bottombar = apply_bottom_bar(tc, half_t)
+        downshift = Denoiser(lc_bottombar, model, tile_size=self.tile_size)
+        downshift.denoise(show=False, hide_extra_text=True)
+        bc = make_bottom_crop(downshift.denoised_, half_t)
+        downshift = apply_top_bar(bc, half_t)
+
+        t1_final = time() - t1
+        print(f"Complete. {round(t1_final, 1)} seconds elapsed.")
+
+        # diagonal processing
+        t2 = time()
+        print("Pass 3/4")
+        diag = make_right_crop(base, half_t)
+        diag = make_bottom_crop(diag, half_t)
+        diag = make_left_crop(diag, half_t)
+        diag = make_top_crop(diag, half_t)
+        diag_d = Denoiser(diag, model, tile_size=self.tile_size)
+        diag_d.denoise(show=False, hide_extra_text=True)
+        diagshift = diag_d.denoised_
+        diagshift = apply_right_bar(diagshift, half_t)
+        diagshift = apply_bottom_bar(diagshift, half_t)
+        diagshift = apply_top_bar(diagshift, half_t)
+        diagshift = apply_left_bar(diagshift, half_t)
+
+        t2_final = time() -t2
+        print(f"Complete. {round(t2_final, 1)} seconds elapsed.")
+
+
+        # Denoising the base image
+        t3 = time()
+        print("Pass 4/4")
+        base_d = Denoiser(base, model, tile_size=self.tile_size)
+        base_d.denoise(show=False, hide_extra_text=True)
+
+
+        t3_final = time() -t3
+        print(f"Complete. {round(t3_final, 1)} seconds elapsed.")
+
+
+        # RECONSTRUCTION STEPS
+        t4 = time()
+        print("Reconstructing the denoised image..")
+        # Operazione 1: rimozione delle intersezioni verticali da immagine base
+        step1 = apply_mask(base_d.denoised_, vertical_mask)
+        # Operazione 2: denoise dell'immagine spostata verso dx di 32 px (rappresentata in arancione):
+        step2 = rightshift
+        # Operazione 3: merge
+        step3 = Image.alpha_composite(step2.convert("RGBA"), step1)
+        # Operazione 4: rimozione delle intersezioni orizzontali da immagine base
+        step4 = apply_mask(base_d.denoised_, horizontal_mask)
+        # Operazione 5: denoise dell'immagine spostata verso il basso di 32 px (rappresentata in verde):
+        step5 = downshift.copy()
+        # Operazione 6: merge
+        step6 = Image.alpha_composite(step5.convert("RGBA"), step4)
+        # Operazione 7: denoise dell'immagine spostata verso dx e verso il basso di 32 px (rappresentata in rosso):
+        step7 = diagshift.copy()
+
+        final_vertical_mask = make_vertical_stripes(n_horizontal_tiles, final=True) # counter-intuitive
+        final_horizontal_mask  = make_horizontal_stripes(n_vertical_tiles, final=True) # counter-intuitive
+
+        # Operazione 8: rimozione delle intersezioni orizzontali dall'immagine da operazione 3:
+        step8 = apply_mask(step3, final_horizontal_mask)
+        # Operazione 9: rimozione delle intersezioni verticali dall'immagine da operazione 6:
+        step9 = apply_mask(step6, final_vertical_mask)
+        # Operazione 10: merge delle immagini da operazioni 7, 8 e 9:
+        step10 = Image.alpha_composite(step8, step9)
+        step10 = Image.alpha_composite(step7.convert("RGBA"), step10)
+
+        # Operazione 11: applicazione maschera a step 10
+        fixmask = make_fixing_mask(n_horizontal_tiles)
+        step11 = apply_mask(base_d.denoised_, fixmask)
+
+        # Operazione 12: sostituzione delle strip da immagine base denoised
+        # dentro immagine de-tiled
+        step12 = Image.alpha_composite(step10, step11)
+
+        t4_final = time() -t4
+        print(f"Complete. {round(t4_final, 1)} seconds elapsed.")
+
+        tot_time = t0_final + t1_final + t2_final + t3_final + t4_final
+        print(f"Total processing time: {round(tot_time, 1)} seconds.")
+        
+        self.detiled_ = step12.copy()
+        self._say("Denoised image in 'detiled_' attribute.")
+        
+        # TODO anything to delete? 
+        
+        if show:
+            return self.detiled_
 
 
 def prep_array(array
