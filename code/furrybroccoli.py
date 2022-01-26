@@ -267,8 +267,17 @@ class Dataset:
 
 class Denoiser():
     """ Works on PIL <Image> objects.
+    
     Denoiser.denoise() returns a denoised image, based on the model and
     input parameters.
+
+    Denoiser.adv_denoise() returns a denoised image, based on the model and
+    input parameters, free from tiling artefacts (usually there is a visible
+    artefact at each tile boundary, both horizontally and vertically).
+    This is more expensive in computational time, but it allows to use smaller
+    tiles which *dramatically* reduce the amount of RAM needed to process the
+    entire image.
+    This is usually ~4X slower than Denoiser.denoise().
     
     params
     ======
