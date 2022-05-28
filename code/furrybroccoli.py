@@ -912,3 +912,53 @@ def get_input_shape():
         return (1, img_width, img_height)
     else: #"channels_last"
         return (img_width, img_height, 1)
+
+  
+# IMAGE TOOLS #
+
+# TODO: better documentation
+# TODO: put some checks
+def average_img(folder, img_type="jpg", savefig=True, outfile="average.png"):
+    """
+    <folder> is a folder in the current working directory.
+    All images that conform to type <img_type> will be blended into one (pixel average).
+    
+    Inspiration from:
+    https://stackoverflow.com/questions/17291455/how-to-get-an-average-picture-from-100-pictures-using-pil
+    """
+    
+    if os.path.exists(folder):
+        os.chdir(folder)
+        
+    images = glob(f"*.{img_type}")
+    
+    # Assuming all images are the same size, get dimensions of first image
+    w, h = Image.open(images[0]).size
+    n = len(images)
+    
+    # Create a numpy array of floats to store the average (assume RGB images)
+    arr = np.zeros((h, w, 3), np.float64)
+    
+    # Build up average pixel intensities, casting each image as an array of floats
+    for i, img in enumerate(images):
+        print(f"Processing image {i + 1} of {n}.         ", end="\r")
+        arr += np.array(Image.open(img), dtype=np.float64)
+    
+    print("\nDone.")
+    arr = arr / n
+    
+    print("Averaging values..")
+    # Round values in array and cast as 8-bit integer
+    arr = np.array(np.round(arr), dtype=np.uint8)
+    
+    print("Making the final image.")
+    # Generate, save and preview final image
+    returnimage = Image.fromarray(arr, mode="RGB")
+    
+    if savefig:
+        print("Saving the image.")
+        returnimage.save("Average.png")
+    
+    os.chdir("..")
+    
+    return returnimage
