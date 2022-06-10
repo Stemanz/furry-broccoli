@@ -76,7 +76,7 @@ True
 ```
 
 ### denoising an image
-Using a pretrained model.
+Using a pretrained model and the ```Denoiser``` class.
 
 ```python
 from furrybroccoli import Denoiser
@@ -87,3 +87,10 @@ d = Denoiser(
     tile_size = 28 # see below for details
 )
 ```
+
+The ```tile_size``` parameter can be different from what the model has been trained with, but it seems to work properly this way only with ```keras``` version == ```2.6.0```. There are two ways of denoising an image, one faster than the other:
+
+```python
+# todo
+```
+
