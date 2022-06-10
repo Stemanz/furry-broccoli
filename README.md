@@ -80,10 +80,15 @@ Using a pretrained model and the ```Denoiser``` class.
 
 ```python
 from furrybroccoli import Denoiser
+from PIL import Image
+import keras
+
+image = Image.open("test_images/IMG_0053.JPG")
+model = keras.models.load_model("model_56px_neuralnet_vanilla")
 
 d = Denoiser(
-    image = "test_images/IMG_0053.JPG", # path to image file
-    model = "model_56px_neuralnet_vanilla", # path to the folder of the model
+    image = image,
+    model = model,
     tile_size = 28 # see below for details
 )
 ```
@@ -91,6 +96,71 @@ d = Denoiser(
 The ```tile_size``` parameter can be different from what the model has been trained with, but it seems to work properly this way only with ```keras``` version == ```2.6.0```. There are two ways of denoising an image, one faster than the other:
 
 ```python
-# todo
+d.denoise()
+Denoising red channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising green channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising blue channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoised image in 'denoised_' attribute.
 ```
 
+This is a first-pass denoising step that, depending on the chosen ```tile_size```, will leave artefacts at the boundaries of nearby denoised tiles. To render a perfect denoised image, it is required to perform a more thorough, multi-step denoising procedure that can be called with:
+
+```python
+d.adv_denoise()
+Image properties: 5184×3456 pixels
+Tile size: 28; half tile size: 14; 185×123 total tiles
+Intersection Δ: 10; half Δ: 5
+Pass 1/4
+Denoising red channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising green channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising blue channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Complete. 221.7 seconds elapsed.
+Pass 2/4
+Denoising red channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising green channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising blue channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Complete. 232.1 seconds elapsed.
+Pass 3/4
+Denoising red channel..
+width: 5170; height: 3428
+Image multiple of 184×122 integer tiles.
+Denoising green channel..
+width: 5170; height: 3428
+Image multiple of 184×122 integer tiles.
+Denoising blue channel..
+width: 5170; height: 3428
+Image multiple of 184×122 integer tiles.
+Complete. 243.0 seconds elapsed.
+Pass 4/4
+Denoising red channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising green channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Denoising blue channel..
+width: 5184; height: 3456
+Image multiple of 185×123 integer tiles.
+Complete. 325.9 seconds elapsed.
+Reconstructing the denoised image..
+```
+
+To be continued. Note for self: call the stuff with a correct tile size (must be an EXACT mutiple)
