@@ -1,3 +1,5 @@
+This dataset is of type: clean images, noisy images
+
 This contains:
 ISO 200 pictures processed with DPP3 with default settings
 ISO 1600 pictures, +2EV, processed with DPP3 with +2 NR settings (both chrominance and luminance)
