@@ -2,6 +2,14 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
+__version__ = "110722"
+
+# Changelog
+
+# 11/07/22
+# experimental adv_denoise_exp() to work with three indepedent channels.
+# also modified denoise() to work with one or three models.
+
 import keras # 2.6.0
 from keras.models import Sequential
 from keras.layers import Conv2D, Conv2DTranspose
@@ -486,50 +494,82 @@ class Denoiser():
             return Image.fromarray(returnimage[:,:,0])   
 
         
-    def denoise(self, show=True, hide_extra_text=False):
+    def denoise(self, show=True, hide_extra_text=False, multichannel=False):
+        #This does NOT detect multichannel mode. It's done in adv_denoise()
         
-        self._say("Denoising red channel..")
-        denoised_r = self._image_rebuilder(
-            self.image.getchannel("R"), self.model, self.tile_size
-        )
-        
-        self._say("Denoising green channel..")
-        denoised_g = self._image_rebuilder(
-            self.image.getchannel("G"), self.model, self.tile_size
-        )
-        
-        self._say("Denoising blue channel..")
-        denoised_b = self._image_rebuilder(
-            self.image.getchannel("B"), self.model, self.tile_size
-        )
-        
-        rgb = Image.merge("RGB",(denoised_r, denoised_g, denoised_b))
-        
-        self.denoised_ = rgb
-        del denoised_r, denoised_g, denoised_b
-        
-        if not hide_extra_text: # useless if called whithin self.adv_denoise()
-            self._say("Denoised image in 'denoised_' attribute.")
-        
-        if show:
-            return rgb
+        if multichannel:
+
+            self._say("Denoising red channel..")
+            denoised_r = self._image_rebuilder(
+                self.image.getchannel("R"), self.model[0], self.tile_size
+            )
+            
+            self._say("Denoising green channel..")
+            denoised_g = self._image_rebuilder(
+                self.image.getchannel("G"), self.model[1], self.tile_size
+            )
+            
+            self._say("Denoising blue channel..")
+            denoised_b = self._image_rebuilder(
+                self.image.getchannel("B"), self.model[2], self.tile_size
+            )
+            
+            rgb = Image.merge("RGB",(denoised_r, denoised_g, denoised_b))
+            
+            self.denoised_ = rgb
+            del denoised_r, denoised_g, denoised_b
+            
+            if not hide_extra_text: # useless if called whithin self.adv_denoise()
+                self._say("Denoised image in 'denoised_' attribute.")
+            
+            if show:
+                return rgb
+
+        else:
+
+            self._say("Denoising red channel..")
+            denoised_r = self._image_rebuilder(
+                self.image.getchannel("R"), self.model, self.tile_size
+            )
+            
+            self._say("Denoising green channel..")
+            denoised_g = self._image_rebuilder(
+                self.image.getchannel("G"), self.model, self.tile_size
+            )
+            
+            self._say("Denoising blue channel..")
+            denoised_b = self._image_rebuilder(
+                self.image.getchannel("B"), self.model, self.tile_size
+            )
+            
+            rgb = Image.merge("RGB",(denoised_r, denoised_g, denoised_b))
+            
+            self.denoised_ = rgb
+            del denoised_r, denoised_g, denoised_b
+            
+            if not hide_extra_text: # useless if called whithin self.adv_denoise()
+                self._say("Denoised image in 'denoised_' attribute.")
+            
+            if show:
+                return rgb
 
 
-    def denoise_monochrome(self):
-        """This assumes the input image only has one channel.
+
+    # TODO: replace adv_denoise with this one when finished
+    def adv_denoise(self, show=True, delta=10):
         """
+        This function has been developed from adv_denoise().
         
-        self._say("Denoising input image..")
-        denoised = self._image_rebuilder(
-            self.image, self.model
-        )
+        It can either denoise an image with one model for all channels,
+        or using three different models to denosise red, green and blue channels
+        independently.
 
-
-    def adv_denoise(self, show=True):
-        """This runs a 4-step denoising process that takes care to remove all
+        This function runs a 4-step denoising process that takes care to remove all
         bordering artefacts.
         This makes it possibile to use a small tile size for denoising and still
         get an artefact-free final image
+
+        <delta>: the number of pixels to make transparent at t intersections
         """
         
         # Preparing the transparency masks
@@ -747,16 +787,43 @@ class Denoiser():
 
         # INPUT
         base = self.image.convert("RGB") # don't need the eventual alpha channel
-        model = self.model # already a model object
+        model = self.model # already a model object OR an iterable with three models
+                           # is this necessary? Nope, but it's shorter than self.model
+
+        if isinstance(self.model, keras.engine.sequential.Sequential):
+            multichannel = False
+        else:
+            if len(model) != 3:
+                msg = "Error. <model> must contain exactly 3 models, one for each R, G, B channel."
+                raise TypeError(msg)
+
+            try:
+                assert isinstance(model[0], keras.engine.sequential.Sequential)
+                assert isinstance(model[1], keras.engine.sequential.Sequential)
+                assert isinstance(model[2], keras.engine.sequential.Sequential)
+            except AssertionError:
+                print("Check the output: something's wrong with some model.")
+                raise
+            multichannel = True
+            self._say("Multichannel mode: denoising channels with separate models.")
 
         width, height = base.size
 
+        # TODO: make these selectable
         t = self.tile_size                # tile size (tile is t×t size)
         half_t = t // 2                   # half the tile size
         n_horizontal_tiles = width // t   # choose reasonably so that no pixel is lost
         n_vertical_tiles = height // t    # choose reasonably so that no pixel is lost
-        delta = 10                        # the number of pixels to make transparent at t intersections
+        #delta = 10                        # the number of pixels to make transparent at t intersections
         halfdelta = delta // 2            # the number of delta pixels in a tile
+
+        try:
+            assert width  % t == 0
+            assert height % t == 0
+        except AssertionError:
+            print("Image width and/or height are NOT exact multiples of <tile_size>")
+            print("This will not hopefully be a problem in the future, but now it is.")
+            raise NotImplementedError("I can't handle non-exact multiples of tile size.")
 
         print(f"Image properties: {width}×{height} pixels")
         print(f"Tile size: {t}; half tile size: {half_t}; {n_horizontal_tiles}×{n_vertical_tiles} total tiles")
@@ -773,7 +840,7 @@ class Denoiser():
         lc = make_left_crop(base, half_t)
         lc_rightbar = apply_right_bar(lc, half_t)
         rightshift = Denoiser(lc_rightbar, model, tile_size=self.tile_size)
-        rightshift.denoise(show=False, hide_extra_text=True)
+        rightshift.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         rc = make_right_crop(rightshift.denoised_, half_t)
         rightshift = apply_left_bar(rc, half_t)
 
@@ -787,7 +854,7 @@ class Denoiser():
         tc = make_top_crop(base, half_t)
         lc_bottombar = apply_bottom_bar(tc, half_t)
         downshift = Denoiser(lc_bottombar, model, tile_size=self.tile_size)
-        downshift.denoise(show=False, hide_extra_text=True)
+        downshift.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         bc = make_bottom_crop(downshift.denoised_, half_t)
         downshift = apply_top_bar(bc, half_t)
 
@@ -802,7 +869,7 @@ class Denoiser():
         diag = make_left_crop(diag, half_t)
         diag = make_top_crop(diag, half_t)
         diag_d = Denoiser(diag, model, tile_size=self.tile_size)
-        diag_d.denoise(show=False, hide_extra_text=True)
+        diag_d.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         diagshift = diag_d.denoised_
         diagshift = apply_right_bar(diagshift, half_t)
         diagshift = apply_bottom_bar(diagshift, half_t)
@@ -817,7 +884,7 @@ class Denoiser():
         t3 = time()
         print("Pass 4/4")
         base_d = Denoiser(base, model, tile_size=self.tile_size)
-        base_d.denoise(show=False, hide_extra_text=True)
+        base_d.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
 
 
         t3_final = time() -t3
