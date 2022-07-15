@@ -2,13 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "110722"
-
-# Changelog
-
-# 11/07/22
-# experimental adv_denoise_exp() to work with three indepedent channels.
-# also modified denoise() to work with one or three models.
+__version__ = "150722"
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -943,12 +937,12 @@ class Denoiser():
             return self.detiled_
 
 
-def prep_array(array
-              # img_width, img_height
-              ):
+def prep_array(array, img_width, img_height):
     
-    global img_width, img_height
     """Preps an input array for the keras model. Adapted from source:
+
+    <img_width>: the width of the tile size
+    <img_height>: the height of the tile size
 
     Reshape data based on channels first / channels last strategy.
     This is dependent on whether you use TF, Theano or CNTK as backend.
@@ -965,15 +959,18 @@ def prep_array(array
     return array / 255 # Normalize data (0-255 to 0-1)
 
 
-def get_input_shape():
+def get_input_shape(img_width, img_height):
 
-    # Adapted from source:
+    """
+    <img_width>: the width of the tile size
+    <img_height>: the height of the tile size
+
+    Adapted from source:
     
     # Reshape data based on channels first / channels last strategy.
     # This is dependent on whether you use TF, Theano or CNTK as backend.
     # Source: https://github.com/keras-team/keras/blob/master/examples/mnist_cnn.py
-    
-    global img_width, img_height
+    """
     
     if K.image_data_format() == 'channels_first':
         return (1, img_width, img_height)
@@ -995,7 +992,7 @@ def average_img(folder, img_type="jpg", savefig=True, outfile="average.png"):
     """
     
     if os.path.exists(folder):
-        os.chdir(folder)
+        os.chdir(folder)    # TODO: improve
         
     images = glob(f"*.{img_type}")
     
@@ -1029,3 +1026,13 @@ def average_img(folder, img_type="jpg", savefig=True, outfile="average.png"):
     os.chdir("..")
     
     return returnimage
+
+
+# Useful loss functions #
+
+# ideas from:
+# https://stackoverflow.com/questions/57357146/use-ssim-loss-function-with-keras
+# https://blog.katastros.com/a?ID=01050-ce5dc814-80fd-4fec-8d3d-1a447bcdd8c8
+def ssim(y_true, y_pred):
+    return 1 - tf.image.ssim(y_true, y_pred, max_val=1) # sputa 1 numero. quindi perchè:
+    #return 1 - tf.reduce_mean(tf.image.ssim(y_true, y_pred, 1.0)) # ?
