@@ -6,6 +6,27 @@ This is a **image denoising** project. ```furry-broccoli``` features:
 - **trained models**: trained keras models to perform image denoising (in ```/models```)
 - **denoiser**: code for denoising an image given an input model
 
+# quick image denoise
+Let's assume we're in a folder where you have:
+- put an image, for example ```Image001.JPG```
+- unzipped a model, like [this one](https://github.com/Stemanz/furry-broccoli/raw/main/models/standard/model_dspixcenterDOUBLE_28px_neuralnet_64_32_32_64_kernel3x3_10epoch_mse_selu.zip)
+
+Here's the piece of code you need:
+
+```python
+from furrybroccoli import Denoiser
+from PIL import Image
+import keras
+
+img = Image.open("Image001.JPG")
+model = keras.models.load_model("model_dspixcenterDOUBLE_28px_neuralnet_64_32_32_64_kernel3x3_10epoch_mse_selu")
+
+d = Denoiser(img, model, tile_size=56) # image width and height MUST be an EXACT multiple of tile_size
+d.adv_denoise()
+
+# runs stuff then outputs the denoised image
+```
+
 # quick start
 ### creating a dataset
 Use ```Dataset``` to slice paired clean/noisy images into tiny tiles for training.
