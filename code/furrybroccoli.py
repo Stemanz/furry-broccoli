@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "150722"
+__version__ = "210722"
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -937,6 +937,42 @@ class Denoiser():
             return self.detiled_
 
 
+# DATA PREPPING #
+# ===============
+
+class DataFeed():
+    """Prepping the array takes an insane amount of RAM. In the path to
+    the total conversion to generators, I'm for now using a generator here
+    to bridge between the still-manageable, feature-rich (such as "dataset.shuffle()")
+    Dataset objects and the vectors that the model needs.
+
+    Taking one step further, image_width and image_height are both
+    replaced by tile_size, as we're always using perfect squares.
+    """
+
+    def __init__(self, array, batch_size=128, tile_size=28, astype="float32"):
+        self.array = array
+        self.batch_size = batch_size
+        self.tile_size = tile_size
+        self.astype = astype
+    
+    def __iter__(self):
+        for i in range(0, len(self.array), batch_size):
+
+          if K.image_data_format() == 'channels_first':
+              array_slice = self.array[i:i + self.batch_size]
+              array_slice = array_slice.reshape(array_slice.shape[0], 1, tile_size, tile_size).astype(self.astype)
+          else: # "channels_last"
+              array_slice = self.array[i:i + self.batch_size]
+              array_slice = array_slice.reshape(array_slice.shape[0], tile_size, tile_size, 1).astype(self.astype)
+          
+          yield array_slice / 255 # Normalize data (0-255 to 0-1)
+
+    def __len__(self):
+        return len(self.array)
+
+        
+# legacy code
 def prep_array(array, img_width, img_height):
     
     """Preps an input array for the keras model. Adapted from source:
@@ -959,6 +995,7 @@ def prep_array(array, img_width, img_height):
     return array / 255 # Normalize data (0-255 to 0-1)
 
 
+# legacy code
 def get_input_shape(img_width, img_height):
 
     """
@@ -979,6 +1016,7 @@ def get_input_shape(img_width, img_height):
 
   
 # IMAGE TOOLS #
+# =============
 
 # TODO: better documentation
 # TODO: put some checks
@@ -1029,10 +1067,16 @@ def average_img(folder, img_type="jpg", savefig=True, outfile="average.png"):
 
 
 # Useful loss functions #
+# =======================
 
-# ideas from:
-# https://stackoverflow.com/questions/57357146/use-ssim-loss-function-with-keras
-# https://blog.katastros.com/a?ID=01050-ce5dc814-80fd-4fec-8d3d-1a447bcdd8c8
 def ssim(y_true, y_pred):
+    """SSIM stands for Structural Similarity Index and is a perceptual metric to measure similarity of two images
+    
+    ideas from:
+    https://stackoverflow.com/questions/57357146/use-ssim-loss-function-with-keras
+    https://blog.katastros.com/a?ID=01050-ce5dc814-80fd-4fec-8d3d-1a447bcdd8c8
+    
+    This performs fantastically bad with respect to mse for training autoencoders for denoising
+    """
     return 1 - tf.image.ssim(y_true, y_pred, max_val=1) # sputa 1 numero. quindi perchè:
     #return 1 - tf.reduce_mean(tf.image.ssim(y_true, y_pred, 1.0)) # ?
