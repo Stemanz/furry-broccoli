@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "210722"
+__version__ = "220722"
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -972,35 +972,14 @@ class DataFeed():
         return len(self.array)
 
         
-# legacy code
-def prep_array(array, img_width, img_height):
-    
-    """Preps an input array for the keras model. Adapted from source:
+def get_input_shape(tile_size):
 
-    <img_width>: the width of the tile size
-    <img_height>: the height of the tile size
+    """ 
+    This is used when creating the model, to tell keras.Conv2D layer
+    what the input shape is via the input_shape parameter.
 
-    Reshape data based on channels first / channels last strategy.
-    This is dependent on whether you use TF, Theano or CNTK as backend.
-    Source: https://github.com/keras-team/keras/blob/master/examples/mnist_cnn.py
-    """
-    
-    if K.image_data_format() == 'channels_first':
-        array = array.reshape(array.shape[0], 1, img_width, img_height)
-    else: #"channels_last"
-        array = array.reshape(array.shape[0], img_width, img_height, 1)
-
-    # e se provassi..? numpy.half / numpy.float16
-    array = array.astype('float32')
-    return array / 255 # Normalize data (0-255 to 0-1)
-
-
-# legacy code
-def get_input_shape(img_width, img_height):
-
-    """
-    <img_width>: the width of the tile size
-    <img_height>: the height of the tile size
+    We always use square tiles, so img_width and img_height
+    are the same as tile_size.
 
     Adapted from source:
     
@@ -1008,11 +987,11 @@ def get_input_shape(img_width, img_height):
     # This is dependent on whether you use TF, Theano or CNTK as backend.
     # Source: https://github.com/keras-team/keras/blob/master/examples/mnist_cnn.py
     """
-    
+
     if K.image_data_format() == 'channels_first':
-        return (1, img_width, img_height)
+        return (1, tile_size, tile_size)
     else: #"channels_last"
-        return (img_width, img_height, 1)
+        return (tile_size, tile_size, 1)
 
   
 # IMAGE TOOLS #
@@ -1080,3 +1059,14 @@ def ssim(y_true, y_pred):
     """
     return 1 - tf.image.ssim(y_true, y_pred, max_val=1) # sputa 1 numero. quindi perchè:
     #return 1 - tf.reduce_mean(tf.image.ssim(y_true, y_pred, 1.0)) # ?
+
+
+# Useful activation functions #
+# =============================
+
+# from: https://www.codegrepper.com/code-examples/python/mish+activation+function+tensorflow
+# paper: https://www.codegrepper.com/code-examples/python/mish+activation+function+tensorflow
+def mish(x):
+    """Mish: A Self Regularized Non-Monotonic Activation Function
+    """
+	return keras.layers.Lambda(lambda x: x*K.tanh(K.softplus(x)))(x)
