@@ -1065,7 +1065,7 @@ def ssim(y_true, y_pred):
 # =============================
 
 # from: https://www.codegrepper.com/code-examples/python/mish+activation+function+tensorflow
-# paper: https://www.codegrepper.com/code-examples/python/mish+activation+function+tensorflow
+# paper: https://arxiv.org/abs/1908.08681
 def mish(x):
     """Mish: A Self Regularized Non-Monotonic Activation Function
     """
