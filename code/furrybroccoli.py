@@ -1069,4 +1069,4 @@ def ssim(y_true, y_pred):
 def mish(x):
     """Mish: A Self Regularized Non-Monotonic Activation Function
     """
-	return keras.layers.Lambda(lambda x: x*K.tanh(K.softplus(x)))(x)
+    return keras.layers.Lambda(lambda x: x*K.tanh(K.softplus(x)))(x)
