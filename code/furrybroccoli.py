@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "270722"
+__version__ = "270722a"
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -833,7 +833,10 @@ class Denoiser():
 
         lc = make_left_crop(base, half_t)
         lc_rightbar = apply_right_bar(lc, half_t)
-        rightshift = Denoiser(lc_rightbar, model, tile_size=self.tile_size)
+        rightshift = Denoiser(
+            lc_rightbar, model,
+            tile_size=self.tile_size, verbose=self.verbose
+        )
         rightshift.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         rc = make_right_crop(rightshift.denoised_, half_t)
         rightshift = apply_left_bar(rc, half_t)
@@ -847,7 +850,10 @@ class Denoiser():
 
         tc = make_top_crop(base, half_t)
         lc_bottombar = apply_bottom_bar(tc, half_t)
-        downshift = Denoiser(lc_bottombar, model, tile_size=self.tile_size)
+        downshift = Denoiser(
+            lc_bottombar, model,
+            tile_size=self.tile_size, verbose=self.verbose
+        )
         downshift.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         bc = make_bottom_crop(downshift.denoised_, half_t)
         downshift = apply_top_bar(bc, half_t)
@@ -862,7 +868,10 @@ class Denoiser():
         diag = make_bottom_crop(diag, half_t)
         diag = make_left_crop(diag, half_t)
         diag = make_top_crop(diag, half_t)
-        diag_d = Denoiser(diag, model, tile_size=self.tile_size)
+        diag_d = Denoiser(
+            diag, model,
+            tile_size=self.tile_size, verbose=self.verbose
+        )
         diag_d.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
         diagshift = diag_d.denoised_
         diagshift = apply_right_bar(diagshift, half_t)
@@ -877,7 +886,10 @@ class Denoiser():
         # Denoising the base image
         t3 = time()
         self._say("Pass 4/4")
-        base_d = Denoiser(base, model, tile_size=self.tile_size)
+        base_d = Denoiser(
+            base, model,
+            tile_size=self.tile_size, verbose=self.verbose
+        )
         base_d.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
 
 
