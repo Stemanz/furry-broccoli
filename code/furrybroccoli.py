@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "220722"
+__version__ = "270722"
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -957,16 +957,16 @@ class DataFeed():
         self.astype = astype
     
     def __iter__(self):
-        for i in range(0, len(self.array), batch_size):
+        for i in range(0, len(self.array), self.batch_size):
 
-          if K.image_data_format() == 'channels_first':
-              array_slice = self.array[i:i + self.batch_size]
-              array_slice = array_slice.reshape(array_slice.shape[0], 1, tile_size, tile_size).astype(self.astype)
-          else: # "channels_last"
-              array_slice = self.array[i:i + self.batch_size]
-              array_slice = array_slice.reshape(array_slice.shape[0], tile_size, tile_size, 1).astype(self.astype)
+            if K.image_data_format() == 'channels_first':
+                array_slice = self.array[i:i + self.batch_size]
+                array_slice = array_slice.reshape(array_slice.shape[0], 1, tile_size, tile_size).astype(self.astype)
+            else: # "channels_last"
+                array_slice = self.array[i:i + self.batch_size]
+                array_slice = array_slice.reshape(array_slice.shape[0], tile_size, tile_size, 1).astype(self.astype)
           
-          yield array_slice / 255 # Normalize data (0-255 to 0-1)
+            yield array_slice / 255 # Normalize data (0-255 to 0-1)
 
     def __len__(self):
         return len(self.array)
