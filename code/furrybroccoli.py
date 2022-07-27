@@ -404,6 +404,84 @@ class Denoiser():
         return model.predict(to_predict)
 
     
+
+    # The image needs to be an exact multiple of the <tile_size>
+    # the model was trained with because tensorflow > 2.6.0
+    # stubbornly refuses to give it a spin nonetheless (even if it works)
+    def _add_extra_width(self, image, tile_size=28):
+        """Returns an <image> that is compatible with tile_size, horizontally
+        
+        This is done by applying a vertical patch taken from the right
+        side of the image.
+        """
+        
+        width, height = image.size
+
+        # check width
+        if (extra_width := width % tile_size) != 0:
+            # we need to add extra_width pixels to the image
+            # we'll duplicate patches from the corner of the image
+            # that we'll temporarily stick to it, then remove it when finished
+
+            # first, we fill in the x axis (on the right) by applying a vertical patch
+            # then, we fill the y axis (at the bottom) by applying a horiozntal patch
+
+            horizontal_pixels_to_add = tile_size - extra_width
+            left = width - horizontal_pixels_to_add
+            upper = 0
+            right = width
+            lower = height
+
+            horizontal_patch = image.crop((left, upper, right, lower))
+
+            temp_img = np.concatenate([np.array(image), np.array(horizontal_patch)], axis=1)
+            
+            return Image.fromarray(temp_img)
+        
+        else:
+            
+            return image
+
+        
+    def _add_extra_height(self, image, tile_size=28):
+        """Returns an <image> that is compatible with tile_size, vertically
+        
+        This is done by applying a horizontal patch taken from the bottom
+        side of the image.
+        """
+        
+        width, height = image.size
+        
+        # The image needs to be an exact multiple of the tile_size
+        # the model was trained with because tensorflow > 2.6.0
+        # stubbornly refuses to give it a spin nonetheless (even if it works)
+
+        # check width
+        if (extra_height := height % tile_size) != 0:
+            # we need to add extra_width pixels to the image
+            # we'll duplicate patches from the corner of the image
+            # that we'll temporarily stick to it, then remove it when finished
+
+            # first, we fill in the x axis (on the right) by applying a vertical patch
+            # then, we fill the y axis (at the bottom) by applying a horiozntal patch
+
+            vertical_pixels_to_add = tile_size - extra_height
+            left = 0
+            upper = height - vertical_pixels_to_add
+            right = width
+            lower = height
+
+            horizontal_patch = image.crop((left, upper, right, lower))
+
+            temp_img = np.concatenate([np.array(image), np.array(horizontal_patch)], axis=0)
+            
+            return Image.fromarray(temp_img)
+
+        else:
+            
+            return image
+
+
     def _image_rebuilder(self, image, model, tile_size=56):
         """ Takes as input a monochromatic (single-channel) image,
         returns a denoised monochromatic image.
@@ -487,7 +565,7 @@ class Denoiser():
             # discarding the last dimension
             return Image.fromarray(returnimage[:,:,0])   
 
-        
+
     def denoise(self, show=True, hide_extra_text=False, multichannel=False):
         #This does NOT detect multichannel mode. It's done in adv_denoise()
         
@@ -801,7 +879,20 @@ class Denoiser():
             multichannel = True
             self._say("Multichannel mode: denoising channels with separate models.")
 
+        orig_width, orig_height = self.image.size
+        self._deb(f"{orig_width=}, {orig_height=}")
+
+        try:
+            assert orig_width  % self.tile_size == 0
+            assert orig_height % self.tile_size == 0
+            extra_pixels = False # signals the final processing to leave the image untouched
+        except AssertionError: # adding an extra bit to avoid keras complaints
+            base = self._add_extra_width(base, self.tile_size)
+            base = self._add_extra_height(base, self.tile_size)
+            extra_pixels = True
+
         width, height = base.size
+        self._deb(f"{width=}, {height=}")
 
         # TODO: make these selectable
         t = self.tile_size                # tile size (tile is t×t size)
@@ -811,15 +902,11 @@ class Denoiser():
         #delta = 10                        # the number of pixels to make transparent at t intersections
         halfdelta = delta // 2            # the number of delta pixels in a tile
 
-        try:
-            assert width  % t == 0
-            assert height % t == 0
-        except AssertionError:
-            print("Image width and/or height are NOT exact multiples of <tile_size>")
-            print("This will not hopefully be a problem in the future, but now it is.")
-            raise NotImplementedError("I can't handle non-exact multiples of tile size.")
-
-        self._say(f"Image properties: {width}×{height} pixels")
+        self._say(f"Image properties: {orig_width}×{orig_height} pixels")
+        if extra_pixels:
+            self._say("We adjusted the image size to be compatible with the model.")
+            self._say("(Don't worry, the added patches will be sliced off at the end).")
+            self._say(f"Working on: {width}×{height} pixels")
         self._say(f"Tile size: {t}; half tile size: {half_t}; {n_horizontal_tiles}×{n_vertical_tiles} total tiles")
         self._say(f"Intersection Δ: {delta}; half Δ: {halfdelta}")
 
@@ -933,6 +1020,11 @@ class Denoiser():
         # Operazione 12: sostituzione delle strip da immagine base denoised
         # dentro immagine de-tiled
         step12 = Image.alpha_composite(step10, step11)
+
+        if extra_pixels:
+            self._say("Recropping the denoised image back to the original size.")
+            right, lower = self.image.size
+            step12 = step12.crop((0, 0, right, lower))
 
         t4_final = time() -t4
         self._say(f"Complete. {round(t4_final, 1)} seconds elapsed.")
