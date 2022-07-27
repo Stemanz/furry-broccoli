@@ -819,9 +819,9 @@ class Denoiser():
             print("This will not hopefully be a problem in the future, but now it is.")
             raise NotImplementedError("I can't handle non-exact multiples of tile size.")
 
-        print(f"Image properties: {width}×{height} pixels")
-        print(f"Tile size: {t}; half tile size: {half_t}; {n_horizontal_tiles}×{n_vertical_tiles} total tiles")
-        print(f"Intersection Δ: {delta}; half Δ: {halfdelta}")
+        self._say(f"Image properties: {width}×{height} pixels")
+        self._say(f"Tile size: {t}; half tile size: {half_t}; {n_horizontal_tiles}×{n_vertical_tiles} total tiles")
+        self._say(f"Intersection Δ: {delta}; half Δ: {halfdelta}")
 
         # transparency masks
         vertical_mask = make_vertical_stripes(n_horizontal_tiles) # counter-intuitive
@@ -829,7 +829,7 @@ class Denoiser():
 
         # horizontal processing
         t0 = time()
-        print("Pass 1/4")
+        self._say("Pass 1/4")
 
         lc = make_left_crop(base, half_t)
         lc_rightbar = apply_right_bar(lc, half_t)
@@ -839,11 +839,11 @@ class Denoiser():
         rightshift = apply_left_bar(rc, half_t)
 
         t0_final = time() - t0
-        print(f"Complete. {round(t0_final, 1)} seconds elapsed.")
+        self._say(f"Complete. {round(t0_final, 1)} seconds elapsed.")
 
         # vertical processing
         t1 = time()
-        print("Pass 2/4")
+        self._say("Pass 2/4")
 
         tc = make_top_crop(base, half_t)
         lc_bottombar = apply_bottom_bar(tc, half_t)
@@ -853,11 +853,11 @@ class Denoiser():
         downshift = apply_top_bar(bc, half_t)
 
         t1_final = time() - t1
-        print(f"Complete. {round(t1_final, 1)} seconds elapsed.")
+        self._say(f"Complete. {round(t1_final, 1)} seconds elapsed.")
 
         # diagonal processing
         t2 = time()
-        print("Pass 3/4")
+        self._say("Pass 3/4")
         diag = make_right_crop(base, half_t)
         diag = make_bottom_crop(diag, half_t)
         diag = make_left_crop(diag, half_t)
@@ -871,23 +871,23 @@ class Denoiser():
         diagshift = apply_left_bar(diagshift, half_t)
 
         t2_final = time() -t2
-        print(f"Complete. {round(t2_final, 1)} seconds elapsed.")
+        self._say(f"Complete. {round(t2_final, 1)} seconds elapsed.")
 
 
         # Denoising the base image
         t3 = time()
-        print("Pass 4/4")
+        self._say("Pass 4/4")
         base_d = Denoiser(base, model, tile_size=self.tile_size)
         base_d.denoise(show=False, hide_extra_text=True, multichannel=multichannel)
 
 
         t3_final = time() -t3
-        print(f"Complete. {round(t3_final, 1)} seconds elapsed.")
+        self._say(f"Complete. {round(t3_final, 1)} seconds elapsed.")
 
 
         # RECONSTRUCTION STEPS
         t4 = time()
-        print("Reconstructing the denoised image..")
+        self._say("Reconstructing the denoised image..")
         # Operazione 1: rimozione delle intersezioni verticali da immagine base
         step1 = apply_mask(base_d.denoised_, vertical_mask)
         # Operazione 2: denoise dell'immagine spostata verso dx di 32 px (rappresentata in arancione):
@@ -923,10 +923,10 @@ class Denoiser():
         step12 = Image.alpha_composite(step10, step11)
 
         t4_final = time() -t4
-        print(f"Complete. {round(t4_final, 1)} seconds elapsed.")
+        self._say(f"Complete. {round(t4_final, 1)} seconds elapsed.")
 
         tot_time = t0_final + t1_final + t2_final + t3_final + t4_final
-        print(f"Total processing time: {round(tot_time, 1)} seconds.")
+        self._say(f"Total processing time: {round(tot_time, 1)} seconds.")
         
         self.detiled_ = step12.copy()
         self._say("Denoised image in 'detiled_' attribute.")
