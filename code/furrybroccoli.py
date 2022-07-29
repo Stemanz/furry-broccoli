@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "270722a"
+__version__ = "290722" # trying to get this compatible with Python <= 3.7
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -418,7 +418,9 @@ class Denoiser():
         width, height = image.size
 
         # check width
-        if (extra_width := width % tile_size) != 0:
+        # if (extra_width := width % tile_size) != 0: # Python 3.8+
+        if width % tile_size != 0:
+            extra_width = width % tile_size 
             # we need to add extra_width pixels to the image
             # we'll duplicate patches from the corner of the image
             # that we'll temporarily stick to it, then remove it when finished
@@ -457,7 +459,9 @@ class Denoiser():
         # stubbornly refuses to give it a spin nonetheless (even if it works)
 
         # check width
-        if (extra_height := height % tile_size) != 0:
+        #if (extra_height := height % tile_size) != 0:
+        if height % tile_size != 0:
+            extra_height = height % tile_size
             # we need to add extra_width pixels to the image
             # we'll duplicate patches from the corner of the image
             # that we'll temporarily stick to it, then remove it when finished
@@ -880,7 +884,7 @@ class Denoiser():
             self._say("Multichannel mode: denoising channels with separate models.")
 
         orig_width, orig_height = self.image.size
-        self._deb(f"{orig_width=}, {orig_height=}")
+        # self._deb(f"{orig_width=}, {orig_height=}") # Python 3.8+
 
         try:
             assert orig_width  % self.tile_size == 0
@@ -892,7 +896,7 @@ class Denoiser():
             extra_pixels = True
 
         width, height = base.size
-        self._deb(f"{width=}, {height=}")
+        # self._deb(f"{width=}, {height=}") # Python 3.8+
 
         # TODO: make these selectable
         t = self.tile_size                # tile size (tile is t×t size)
