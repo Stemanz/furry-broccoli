@@ -2,7 +2,7 @@
 # Author: Lino Grossano; lino.grossano@gmail.com
 # Author: Manzini Stefano; stefano.manzini@gmail.com
 
-__version__ = "290722" # trying to get this compatible with Python <= 3.7
+__version__ = "290722a" # trying to get this compatible with Python <= 3.7
 
 import keras # 2.6.0
 from keras.models import Sequential
@@ -1069,10 +1069,14 @@ class DataFeed():
 
             if K.image_data_format() == 'channels_first':
                 array_slice = self.array[i:i + self.batch_size]
-                array_slice = array_slice.reshape(array_slice.shape[0], 1, tile_size, tile_size).astype(self.astype)
+                array_slice = array_slice.reshape(
+                    array_slice.shape[0], 1, self.tile_size, self.tile_size
+                ).astype(self.astype)
             else: # "channels_last"
                 array_slice = self.array[i:i + self.batch_size]
-                array_slice = array_slice.reshape(array_slice.shape[0], tile_size, tile_size, 1).astype(self.astype)
+                array_slice = array_slice.reshape(
+                    array_slice.shape[0], self.tile_size, self.tile_size, 1
+                ).astype(self.astype)
           
             yield array_slice / 255 # Normalize data (0-255 to 0-1)
 
